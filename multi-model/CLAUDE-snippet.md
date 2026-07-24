@@ -2,19 +2,19 @@
 
 Two MCP-bridged models are available, funded by existing subscriptions (no per-token cost):
 - `codex` — OpenAI's frontier coding model via my ChatGPT plan.
-- `gemini` — Google Gemini via my Google account (huge context window; generous free tier).
+- `antigravity` — Google Gemini (via Antigravity CLI) on my Google account/AI Pro sub.
 
 ## When to delegate
 
 - **Hard / high-stakes tasks** (architecture decisions, gnarly bugs, security-sensitive
-  changes, big refactors): draft your approach first, then ask BOTH `codex` and `gemini`
+  changes, big refactors): draft your approach first, then ask BOTH `codex` and `antigravity`
   to critique it. Reconcile disagreements yourself; surface unresolved ones to me.
 - **Second opinion before finalizing** any non-trivial diff: send the diff to `codex`
   for review. Apply fixes you agree with; tell me what you rejected and why.
-- **Very large inputs** (whole-repo analysis, long logs, big docs): prefer `gemini` —
+- **Very large inputs** (whole-repo analysis, long logs, big docs): prefer `antigravity` —
   its context window is larger and usage is effectively free.
 - **Grunt work** (summarizing logs, first-pass triage, boilerplate exploration):
-  prefer `gemini` to conserve Claude tokens.
+  prefer `antigravity` to conserve Claude tokens.
 - **Simple, quick tasks**: don't delegate; overhead isn't worth it.
 
 ## Rules

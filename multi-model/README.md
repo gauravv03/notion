@@ -9,14 +9,19 @@ No API keys, no per-token billing.
 ```
 You ──► Claude Code (Opus/Fable — orchestrator)
               │
-              ├─► codex MCP  ──► Codex CLI ──► "Sign in with ChatGPT" (your Plus plan)
-              └─► gemini MCP ──► Gemini CLI ─► Google OAuth (free tier / your sub)
+              ├─► codex MCP       ──► Codex CLI ──► "Sign in with ChatGPT" (your Plus plan)
+              └─► antigravity MCP ──► Antigravity CLI (agy) ─► Google OAuth (your account/sub)
 ```
 
 Both vendors ship official CLIs that authenticate with your *subscription* instead of
-an API key — this is their sanctioned use, not a hack. Each CLI exposes an MCP server
-mode (Codex natively; Gemini via the `gemini-mcp-tool` wrapper), and Claude Code
-speaks MCP natively. Claude stays the driver and consults them as tools.
+an API key — this is their sanctioned use, not a hack. Codex exposes an MCP server
+mode natively; Antigravity is bridged via a small wrapper around its `agy -p`
+headless mode. Claude Code speaks MCP natively and stays the driver, consulting
+them as tools.
+
+> **Why Antigravity, not Gemini CLI?** Google retired Gemini CLI for individual
+> accounts on 2026-06-18 ("migrate to the Antigravity suite" error). Antigravity
+> CLI is its official successor and still signs in with your Google account.
 
 ## Setup (once, on your local machine)
 
@@ -32,13 +37,14 @@ as user-scoped MCP servers in Claude Code. Verify afterwards with `claude mcp li
 
 Then paste `CLAUDE-snippet.md` into your `~/.claude/CLAUDE.md` (applies everywhere)
 or a project `CLAUDE.md` — it teaches Claude *when* to delegate: cross-model review
-on hard tasks, Gemini for huge-context and grunt work, no delegation on trivia.
+on hard tasks, Antigravity/Gemini for huge-context and grunt work, no delegation
+on trivia.
 
 ## Using it
 
 Explicit:
 
-> Use codex to review this diff, and get gemini's take too. Reconcile.
+> Use codex to review this diff, and get antigravity's take too. Reconcile.
 
 Or just work normally — with the CLAUDE.md rules in place, Claude will pull in
 second opinions on hard tasks on its own.
@@ -57,8 +63,11 @@ second opinions on hard tasks on its own.
 
 - **Shared rate limits**: Codex usage draws from the same allowance as your ChatGPT
   chats. Heavy agent use can exhaust it; it resets on the plan's cycle.
-- **Gemini free-tier quotas**: generous but capped per day; the CLI will tell you
-  when you hit them.
+- **Antigravity quotas**: some AI Pro subscribers report a "Starter Quota" in
+  Antigravity while Google sorts out entitlements — no extra billing either way,
+  but the allowance may be smaller than the old Gemini CLI's.
+- **Antigravity runs permissions auto-approved** in headless mode (so calls don't
+  hang). Keep it advisory — Claude is the only agent that writes to the repo.
 - **Keep it official**: proxy projects exist that wrap these CLIs into fake API
   endpoints for other tools. That's ToS-gray and risks account bans — the setup
   here sticks to each vendor's supported path.
