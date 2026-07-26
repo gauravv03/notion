@@ -1,0 +1,124 @@
+{
+  "_README": [
+    "Edit decision list for the LMNOP split-screen recut.",
+    "",
+    "STATUS OF THE TIMINGS BELOW: the segment in/out points are a STRUCTURAL",
+    "TEMPLATE, not a transcript-derived cut. The source videos live on Meta's",
+    "CDN (video.xx.fbcdn.net), which this environment's egress policy blocks,",
+    "so the footage could not be viewed or transcribed. Every 'start'/'end'",
+    "below is marked needs_confirm and must be checked against the real",
+    "footage before this goes live.",
+    "",
+    "The caption copy IS real -- it is lifted from the live creative for",
+    "ad 120242679571800609 (C_LMNOP_Testimonial_Jul).",
+    "",
+    "Total spoken runtime as written: 30.0s. The source is 35.3s, so the",
+    "recut buys its pace by cutting ~5.3s of slack out of her delivery --",
+    "that is the whole point of the exercise, per the brief."
+  ],
+
+  "sources": {
+    "lmnop": {
+      "path": "src/lmnop.mp4",
+      "_origin": "Meta ad C_LMNOP_Testimonial_Jul / video_id 1522988409250178 (35.3s)",
+      "crop_anchor": 0.35,
+      "_crop_anchor_note": "0=keep top of frame, 1=keep bottom. 0.35 biases toward her face; retune once the footage is visible."
+    },
+    "foam": {
+      "path": "src/foam.mp4",
+      "_origin": "Meta ad DG_NauticalBreeze_FluffFoam_Video / video_id 1545707373629821 (27.2s)",
+      "crop_anchor": 0.5
+    }
+  },
+
+  "layout": {
+    "split": 0.5,
+    "_split_note": "Share of the 1920px canvas given to the top (foam) panel. 0.5 = the even split in the brief.",
+    "seam": { "height": 6, "color": "0xF2C14E" }
+  },
+
+  "caption_style": {
+    "font": "Liberation Sans",
+    "size": 62,
+    "outline": 4,
+    "shadow": 2,
+    "margin_l": 70,
+    "margin_r": 70,
+    "margin_bottom": 300,
+    "_margin_note": "300px clears the Reels/TikTok bottom UI so captions are never covered."
+  },
+
+  "lmnop_segments": [
+    {
+      "_beat": "HOOK - her strongest cold-open line. Must earn the scroll-stop in 3s.",
+      "needs_confirm": true,
+      "start": 0.0,
+      "end": 4.0,
+      "caption": "I stopped fighting my kid at bath time."
+    },
+    {
+      "_beat": "PROBLEM - the dry skin / tears complaint.",
+      "needs_confirm": true,
+      "start": 5.5,
+      "end": 12.0,
+      "caption": "Regular soap left his skin dry and itchy."
+    },
+    {
+      "_beat": "SWITCH - the moment she discovers the product.",
+      "needs_confirm": true,
+      "start": 13.5,
+      "end": 21.0,
+      "captions": [
+        { "t": 0.0, "t_end": 3.8, "text": "pH balanced. Shea butter,\nglycerin & vitamin E." },
+        { "t": 3.8, "t_end": 7.5, "text": "No sulphates. No parabens.\nNo phthalates." }
+      ]
+    },
+    {
+      "_beat": "PROOF - the visible result on the child's skin.",
+      "needs_confirm": true,
+      "start": 22.5,
+      "end": 29.5,
+      "caption": "Now he asks for his bath."
+    },
+    {
+      "_beat": "SOCIAL PROOF - runs under the end card.",
+      "needs_confirm": true,
+      "start": 30.3,
+      "end": 35.25,
+      "caption": "Loved by 10,000+ parents."
+    }
+  ],
+
+  "foam_segments": [
+    {
+      "_beat": "The squeeze into the jar -- the visual hook. Land this under her cold open.",
+      "needs_confirm": true,
+      "start": 0.0,
+      "end": 9.5
+    },
+    {
+      "_beat": "Foam texture / swirl under the problem + switch beats.",
+      "needs_confirm": true,
+      "start": 9.5,
+      "end": 22.0
+    },
+    {
+      "_beat": "Second squeeze, replayed under the proof beat via -stream_loop.",
+      "needs_confirm": true,
+      "start": 27.3,
+      "end": 40.8
+    }
+  ],
+
+  "end_card": {
+    "enabled": true,
+    "duration": 3.5,
+    "scrim_opacity": "0.55",
+    "lines": [
+      { "text": "Buy 1 Get 1 FREE", "size": 86, "y": 870, "color": "0xF2C14E" },
+      { "text": "pH balanced. Made for kids 3+.", "size": 50, "y": 975 },
+      { "text": "dirtygoodco.com", "size": 56, "y": 1060 }
+    ],
+    "_copy_origin": "Verbatim offer + claims from the live C_LMNOP_Testimonial_Jul creative."
+  }
+}

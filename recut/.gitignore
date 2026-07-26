@@ -1,0 +1,8 @@
+# Source footage lives in Drive / Meta, not in git
+src/
+*.mp4
+
+# Render scratch
+.recut_work/
+*.ass
+*.png
