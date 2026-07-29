@@ -1,8 +1,9 @@
-"""Tiny stdlib dashboard server: serves the live UI + a JSON state endpoint.
+"""Tiny stdlib dashboard server: serves the live UI + JSON state + a settings API.
 
-No web framework — just http.server on a background thread. The browser polls
-`/api/state` once a second and repaints. `/api/kill` drops the KILL file so you
-can force-flat from the UI.
+Endpoints:
+  GET  /                 the dashboard
+  GET  /api/state        full state snapshot (polled ~1/s)
+  POST /api/config       runtime controls (timeframe / toggle / trade_all / kill)
 """
 from __future__ import annotations
 
@@ -14,9 +15,9 @@ from pathlib import Path
 _STATIC = Path(__file__).parent / "static"
 
 
-def make_server(state, host: str, port: int) -> ThreadingHTTPServer:
+def make_server(state, controller, host: str, port: int) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *a):  # quiet
+        def log_message(self, *a):
             pass
 
         def _send(self, code, body: bytes, ctype: str):
@@ -27,26 +28,46 @@ def make_server(state, host: str, port: int) -> ThreadingHTTPServer:
             self.end_headers()
             self.wfile.write(body)
 
+        def _json(self, code, obj):
+            self._send(code, json.dumps(obj).encode(), "application/json")
+
         def do_GET(self):
             if self.path.startswith("/api/state"):
-                body = json.dumps(state.snapshot()).encode()
-                return self._send(200, body, "application/json")
-            if self.path.startswith("/api/kill"):
-                Path("KILL").write_text("engaged")
-                state.halted = True
-                return self._send(200, b'{"ok":true}', "application/json")
-            # static — this UI is a single self-contained page
+                return self._json(200, state.snapshot())
             if self.path in ("/", "", "/index.html"):
-                f = _STATIC / "index.html"
-                return self._send(200, f.read_bytes(), "text/html; charset=utf-8")
+                return self._send(200, (_STATIC / "index.html").read_bytes(),
+                                  "text/html; charset=utf-8")
             return self._send(404, b"not found", "text/plain")
 
-    httpd = ThreadingHTTPServer((host, port), Handler)
-    return httpd
+        def do_POST(self):
+            if not self.path.startswith("/api/config"):
+                return self._send(404, b"not found", "text/plain")
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(n) or b"{}")
+            except Exception as exc:
+                return self._json(400, {"ok": False, "error": f"bad body: {exc}"})
+
+            action = body.get("action")
+            try:
+                if action == "timeframe":
+                    res = controller.set_timeframe(int(body["value"]))
+                elif action == "toggle":
+                    res = controller.toggle(body["symbol"], bool(body["enabled"]))
+                elif action == "trade_all":
+                    res = controller.trade_all(bool(body["enabled"]))
+                elif action == "kill":
+                    res = controller.engage_kill()
+                else:
+                    res = {"ok": False, "error": f"unknown action {action}"}
+            except Exception as exc:
+                res = {"ok": False, "error": str(exc)}
+            return self._json(200, res)
+
+    return ThreadingHTTPServer((host, port), Handler)
 
 
-def serve_in_background(state, host: str, port: int) -> ThreadingHTTPServer:
-    httpd = make_server(state, host, port)
-    t = threading.Thread(target=httpd.serve_forever, daemon=True)
-    t.start()
+def serve_in_background(state, controller, host: str, port: int) -> ThreadingHTTPServer:
+    httpd = make_server(state, controller, host, port)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd

@@ -1,20 +1,20 @@
 """Abstractions the engine talks to: a market-data Feed and an Execution venue.
 
-Concrete implementations: MockFeed / AngelOneFeed (data), PaperExecution /
-AngelOneExecution (fills). The engine never imports a broker directly — it only
-uses these interfaces, so swapping brokers is a one-file job.
+Feeds are multi-instrument: they push `(symbol, price, cumulative_volume)` so one
+feed can serve a whole watchlist. The engine routes each tick to the matching
+per-instrument Trader.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+# on_tick(symbol, price, cumulative_volume)
+TickCb = Callable[[str, float, Optional[float]], None]
 
-# ---- market data --------------------------------------------------------
+
 class Feed:
-    """Pushes (price, cumulative_volume) into `on_tick` as the market moves."""
-
-    def __init__(self, on_tick: Callable[[float, Optional[float]], None]):
+    def __init__(self, on_tick: TickCb):
         self.on_tick = on_tick
 
     def start(self) -> None:
@@ -24,19 +24,16 @@ class Feed:
         pass
 
 
-# ---- execution ----------------------------------------------------------
 @dataclass
 class Fill:
     price: float
-    qty: int
-    side: str        # BUY | SELL (the order side that executed)
+    qty: float
+    side: str        # BUY | SELL
     note: str = ""
 
 
 class Execution:
-    """Places (or simulates) orders and returns the fill."""
-
     is_live = False
 
-    def market_order(self, side: str, qty: int, ltp: float) -> Fill:
+    def market_order(self, symbol: str, side: str, qty: float, ltp: float) -> Fill:
         raise NotImplementedError

@@ -14,10 +14,6 @@ class PaperExecution(Execution):
     def __init__(self, slippage_bps: float = 2.0):
         self.slippage = slippage_bps / 10_000.0
 
-    def market_order(self, side: str, qty: int, ltp: float) -> Fill:
-        # buy fills a touch higher, sell a touch lower — realistic friction
-        if side == "BUY":
-            price = ltp * (1 + self.slippage)
-        else:
-            price = ltp * (1 - self.slippage)
+    def market_order(self, symbol: str, side: str, qty: float, ltp: float) -> Fill:
+        price = ltp * (1 + self.slippage) if side == "BUY" else ltp * (1 - self.slippage)
         return Fill(price=price, qty=qty, side=side, note="paper fill")

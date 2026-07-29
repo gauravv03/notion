@@ -1,7 +1,7 @@
 """Live, thread-safe state shared between the engine and the dashboard.
 
-The engine mutates it; the dashboard reads an immutable snapshot. Secrets are
-never stored here.
+Namespaced by instrument symbol. The engine/traders mutate it; the dashboard
+reads an immutable snapshot. Secrets are never stored here.
 """
 from __future__ import annotations
 
@@ -11,12 +11,13 @@ from dataclasses import dataclass, field
 from typing import Deque, Dict, List, Optional
 
 from .data.candles import Candle, now_ist
+from .config import timeframe_label
 
 
 @dataclass
 class Position:
-    side: str = "FLAT"          # LONG | SHORT | FLAT
-    qty: int = 0                # absolute quantity (units, not lots)
+    side: str = "FLAT"
+    qty: float = 0.0
     avg_price: float = 0.0
     stop_loss: Optional[float] = None
     target: Optional[float] = None
@@ -32,13 +33,13 @@ class Position:
 @dataclass
 class Trade:
     ts: str
-    action: str          # BUY | SELL | EXIT
-    side: str            # resulting or closed side
-    qty: int
+    action: str
+    side: str
+    qty: float
     price: float
     reason: str
     conditions: List[dict]
-    pnl: Optional[float] = None   # realized pnl if this closed a position
+    pnl: Optional[float] = None
 
     def as_dict(self) -> dict:
         return {
@@ -49,91 +50,143 @@ class Trade:
         }
 
 
+@dataclass
+class InstrumentState:
+    symbol: str
+    name: str
+    asset_class: str
+    feed: str
+    enabled: bool = True
+    ltp: float = 0.0
+    position: Position = field(default_factory=Position)
+    candles: Deque[Candle] = field(default_factory=lambda: deque(maxlen=120))
+    indicators: dict = field(default_factory=dict)
+    last_decision: dict = field(default_factory=dict)
+    trades: List[Trade] = field(default_factory=list)
+
+
 class State:
     def __init__(self, cfg):
         self._lock = threading.RLock()
         self.cfg = cfg
         self.mode = cfg.mode
-        self.feed = cfg.feed
-        self.instrument = cfg.instrument
-        self.status = "starting"          # starting | live | halted | closed
+        self.timeframe = cfg.default_timeframe_seconds
+        self.status = "starting"
         self.status_note = ""
-        self.ltp: float = 0.0
-        self.position = Position()
-        self.candles: Deque[Candle] = deque(maxlen=120)
-        self.indicators: dict = {}
-        self.last_decision: dict = {}     # most recent Decision (even HOLD)
-        self.trades: List[Trade] = []
-        self.day_realized: float = 0.0
-        self.day_high_equity: float = 0.0
-        self.halted: bool = False
-        self.started_ist: str = now_ist().strftime("%Y-%m-%d %H:%M:%S")
+        self.halted = False
+        self.started_ist = now_ist().strftime("%Y-%m-%d %H:%M:%S")
+        self.inst: Dict[str, InstrumentState] = {}
+        for i in cfg.instruments:
+            self.inst[i["symbol"]] = InstrumentState(
+                symbol=i["symbol"], name=i.get("name", i["symbol"]),
+                asset_class=i.get("asset_class", "equity"),
+                feed=cfg.effective_feed(i),
+                enabled=bool(i.get("enabled", True)),
+            )
+        self.feeds = sorted({s.feed for s in self.inst.values()})
 
-    # ---- mutations (call from engine thread) ---------------------------
+    # ---- mutations -----------------------------------------------------
     def set_status(self, status: str, note: str = ""):
         with self._lock:
             self.status, self.status_note = status, note
 
-    def set_ltp(self, ltp: float):
+    def set_ltp(self, sym: str, ltp: float):
         with self._lock:
-            self.ltp = ltp
+            self.inst[sym].ltp = ltp
 
-    def push_candle(self, c: Candle):
+    def get_ltp(self, sym: str) -> float:
         with self._lock:
-            self.candles.append(c)
+            return self.inst[sym].ltp
 
-    def set_indicators(self, d: dict):
+    def push_candle(self, sym: str, c: Candle):
         with self._lock:
-            self.indicators = d
+            self.inst[sym].candles.append(c)
 
-    def set_decision(self, d: dict):
+    def clear_candles(self, sym: str):
         with self._lock:
-            self.last_decision = d
+            self.inst[sym].candles.clear()
+            self.inst[sym].indicators = {}
+            self.inst[sym].last_decision = {}
 
-    def record_trade(self, t: Trade):
+    def set_indicators(self, sym: str, d: dict):
         with self._lock:
-            self.trades.append(t)
-            if t.pnl is not None:
-                self.day_realized += t.pnl
+            self.inst[sym].indicators = d
 
-    def trades_closed_count(self) -> int:
+    def set_decision(self, sym: str, d: dict):
         with self._lock:
-            return sum(1 for t in self.trades if t.pnl is not None)
+            self.inst[sym].last_decision = d
 
-    # ---- snapshot (call from dashboard thread) -------------------------
+    def get_position(self, sym: str) -> Position:
+        with self._lock:
+            return self.inst[sym].position
+
+    def set_position(self, sym: str, pos: Position):
+        with self._lock:
+            self.inst[sym].position = pos
+
+    def record_trade(self, sym: str, t: Trade):
+        with self._lock:
+            self.inst[sym].trades.append(t)
+
+    def trades_closed_count(self, sym: str) -> int:
+        with self._lock:
+            return sum(1 for t in self.inst[sym].trades if t.pnl is not None)
+
+    def is_enabled(self, sym: str) -> bool:
+        with self._lock:
+            return self.inst[sym].enabled
+
+    def set_enabled(self, sym: str, on: bool):
+        with self._lock:
+            self.inst[sym].enabled = on
+
+    def set_timeframe(self, seconds: int):
+        with self._lock:
+            self.timeframe = seconds
+
+    def portfolio_realized(self) -> float:
+        with self._lock:
+            return sum(t.pnl for s in self.inst.values() for t in s.trades if t.pnl is not None)
+
+    # ---- snapshot ------------------------------------------------------
+    def _inst_summary(self, s: InstrumentState) -> dict:
+        upnl = s.position.unrealized(s.ltp)
+        realized = sum(t.pnl for t in s.trades if t.pnl is not None)
+        closed = [t for t in s.trades if t.pnl is not None]
+        wins = [t for t in closed if t.pnl > 0]
+        return {
+            "symbol": s.symbol, "name": s.name, "asset_class": s.asset_class,
+            "feed": s.feed, "enabled": s.enabled, "ltp": round(s.ltp, 2),
+            "position": {
+                "side": s.position.side, "qty": s.position.qty,
+                "avg_price": round(s.position.avg_price, 2),
+                "stop_loss": s.position.stop_loss, "target": s.position.target,
+                "unrealized": round(upnl, 2),
+            },
+            "day_pnl": round(realized + upnl, 2),
+            "trades_count": len(closed),
+            "win_rate": round(100 * len(wins) / len(closed)) if closed else 0,
+            "indicators": s.indicators,
+            "last_decision": s.last_decision,
+            "candles": [c.as_dict() for c in s.candles],
+            "trades": [t.as_dict() for t in reversed(s.trades[-40:])],
+        }
+
     def snapshot(self) -> dict:
         with self._lock:
-            upnl = self.position.unrealized(self.ltp)
-            equity = self.day_realized + upnl
-            wins = [t for t in self.trades if t.pnl is not None and t.pnl > 0]
-            closed = [t for t in self.trades if t.pnl is not None]
+            insts = [self._inst_summary(s) for s in self.inst.values()]
+            port = sum(i["day_pnl"] for i in insts)
+            closed = sum(i["trades_count"] for i in insts)
             return {
                 "mode": self.mode,
-                "feed": self.feed,
+                "feeds": self.feeds,
                 "status": self.status,
                 "status_note": self.status_note,
                 "halted": self.halted,
+                "timeframe": self.timeframe,
+                "timeframe_label": timeframe_label(self.timeframe),
                 "started_ist": self.started_ist,
-                "instrument": {
-                    "name": self.instrument.get("name"),
-                    "tradingsymbol": self.instrument.get("tradingsymbol"),
-                    "lot_size": self.instrument.get("lot_size"),
-                },
-                "ltp": round(self.ltp, 2),
-                "position": {
-                    "side": self.position.side,
-                    "qty": self.position.qty,
-                    "avg_price": round(self.position.avg_price, 2),
-                    "stop_loss": self.position.stop_loss,
-                    "target": self.position.target,
-                    "unrealized": round(upnl, 2),
-                },
-                "day_pnl": round(equity, 2),
-                "day_realized": round(self.day_realized, 2),
-                "trades_count": len(closed),
-                "win_rate": round(100 * len(wins) / len(closed)) if closed else 0,
-                "indicators": self.indicators,
-                "last_decision": self.last_decision,
-                "candles": [c.as_dict() for c in self.candles],
-                "trades": [t.as_dict() for t in reversed(self.trades[-40:])],
+                "portfolio_pnl": round(port, 2),
+                "portfolio_trades": closed,
+                "instruments": insts,
             }

@@ -13,9 +13,9 @@ from ..data.candles import now_ist
 
 
 class RiskManager:
-    def __init__(self, cfg: dict, lot_size: int, kill_file: str = "KILL"):
-        self.qty_lots = int(cfg.get("qty_lots", 1))
-        self.lot_size = int(lot_size)
+    def __init__(self, cfg: dict, lot_size: float, kill_file: str = "KILL"):
+        self.qty_lots = float(cfg.get("qty_lots", 1))
+        self.lot_size = float(lot_size)   # float: crypto trades fractional units
         self.max_daily_loss = float(cfg.get("max_daily_loss", 3000))
         self.max_trades = int(cfg.get("max_trades", 8))
         self.square_off = str(cfg.get("square_off", "15:20"))
@@ -23,7 +23,8 @@ class RiskManager:
         self.kill_file = Path(kill_file)
 
     @property
-    def order_qty(self) -> int:
+    def order_qty(self) -> float:
+        # float so crypto (fractional units) works alongside equity lots
         return self.qty_lots * self.lot_size
 
     def kill_switch_engaged(self) -> bool:

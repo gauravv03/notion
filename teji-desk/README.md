@@ -1,12 +1,24 @@
 # TEJI Desk — a transparent, live-data intraday trading engine (Indian markets)
 
-TEJI Desk connects to **Angel One SmartAPI**, streams **live** market data, runs a
-**transparent** rule-based strategy, and shows you — on a live dashboard — the
-running position and the *exact logic* behind every buy and sell.
+TEJI Desk streams **live** market data, runs a **transparent** rule-based strategy
+across a **watchlist of instruments at once** — Nifty, Bank Nifty, stocks, **and
+Bitcoin/Ethereum in ₹** — and shows you, on a live dashboard, each running position
+and the *exact logic* behind every buy and sell.
 
 It is **paper-first by design**: real prices in, real signals, real reasoning,
 but **simulated fills** until you deliberately switch to live orders. Nothing here
 invents prices except the offline `mock` feed, which is labelled as such everywhere.
+
+**Everything is decidable in the app** — switch the candle timeframe (1m / 5m /
+15m / 1h), toggle any instrument's trading on/off, trade the whole watchlist or
+just one, and flatten everything — all live, no restart.
+
+### Markets & feeds
+| Asset | Feed | Live data | Live orders |
+|---|---|---|---|
+| Nifty / Bank Nifty / stocks / F&O | **Angel One SmartAPI** | needs your API login | supported (gated) |
+| **Bitcoin / Ethereum (₹)** | **CoinDCX public ticker** | **no account needed** | needs a crypto-exchange adapter (TODO) |
+| anything, offline | `mock` synthetic feed | — | — |
 
 > **This is engineering scaffolding, not investment advice, and not a money
 > machine.** A strategy that executes cleanly is *not* the same as a strategy that
@@ -18,27 +30,37 @@ invents prices except the offline `mock` feed, which is labelled as such everywh
 ## What you get
 
 ```
-Angel One WebSocket (live ticks)
+ Feeds (per instrument):  Angel One WS  ·  CoinDCX ticker  ·  mock
+        │  each tick routed by symbol
+        ▼
+  Trader (one per instrument)
+     Candle aggregator ──► Indicators (EMA fast/slow, VWAP, ATR)
         │
         ▼
-  Candle aggregator ──► Indicators (EMA fast/slow, VWAP, ATR)
+     Strategy (TrendPulse) ──► Decision { action, reason, conditions… }  ← the "why"
         │
         ▼
-  Strategy (TrendPulse) ──► Decision { action, reason, conditions… }   ← the "why"
+     Risk (size, portfolio daily max-loss, square-off, kill-switch, enable/disable)
         │
         ▼
-  Risk manager (size, daily max-loss, square-off, kill-switch)
+     Execution:  Paper (simulated on live price)  |  Angel One (REAL orders, gated)
         │
         ▼
-  Execution:  Paper (simulated on live price)   |   Angel One (REAL orders, gated)
-        │
-        ▼
-  Live dashboard  (position running · live decision · execution log)
+  Live dashboard  (per-instrument position · live decision · execution log
+                   + timeframe switch, on/off toggles, trade-all, flat-all)
 ```
 
-Every trade the engine takes is recorded **with the conditions that produced it**
+Every trade is recorded **with the conditions that produced it**
 (e.g. `EMA9 above EMA21 ✓`, `Price above VWAP ✓`) and every exit records *why*
 (`target hit`, `stop-loss hit`, `square-off`, `trend flipped`).
+
+### In-app controls (no restart, no editing files)
+- **Timeframe** — 1m / 5m / 15m / 1h buttons; changing it rebuilds every
+  instrument's candles and re-warms the strategy.
+- **Per-instrument on/off** — the `ON/OFF` toggle on each rail card decides whether
+  that symbol may take trades. Disabled instruments still stream and still manage an
+  open position to the exit — they just won't open new ones.
+- **Trade-all / Pause-all** and **Flat-all** (kill switch) in the header.
 
 ---
 
@@ -53,10 +75,17 @@ pip install -r requirements.txt          # PyYAML alone is enough for the mock f
 python run.py --mock
 ```
 
-Open **http://127.0.0.1:8899**. You'll see the full pipeline running on a synthetic
-feed: candles form, TrendPulse takes paper positions, and the execution log fills
-in with reasoning. This is the exact UI you'll use with live data — only the price
-source changes.
+Open **http://127.0.0.1:8899**. You'll see the whole watchlist (Nifty, Bank Nifty,
+a stock, BTC, ETH) running on a synthetic feed: candles form, TrendPulse takes
+paper positions per instrument, and the execution log fills with reasoning. Play
+with the timeframe buttons and the on/off toggles — this is the exact UI you'll use
+with live data; only the price source changes.
+
+### Add live crypto with zero setup
+BTC/ETH already use the **CoinDCX public ticker**, so as soon as you're online they
+price in real ₹ with **no account** — in paper mode. Just run without `--mock` (or
+run `--live-data`); the crypto instruments go live while equities wait for your
+Angel One login.
 
 ---
 
@@ -144,6 +173,9 @@ compliant with your broker's and SEBI's current rules.
   auto-reconnect/backoff yet; SmartAPI session tokens also expire daily.
 - **SmartAPI field names** shift between SDK versions — the first live tick prints
   its keys so you can confirm `last_traded_price` / `volume_trade_for_the_day`.
+- **Live crypto orders.** BTC/ETH are live-data + paper only; real crypto orders
+  need an authenticated CoinDCX / Delta Exchange India adapter (HMAC-signed) — the
+  `Execution` interface is ready for it, it just isn't written yet.
 - **Costs** (brokerage, STT, GST, slippage beyond the flat bps) aren't fully modelled
   in paper P&L — see the companion `sauda.html` for the real Indian cost stack.
 - No backtester yet; this validates *forward* on live/paper. A historical backtest is

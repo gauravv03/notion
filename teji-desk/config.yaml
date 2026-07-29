@@ -1,49 +1,62 @@
 # =====================================================================
-# TEJI Desk configuration
+# TEJI Desk configuration (multi-instrument)
 # =====================================================================
 
-# paper = simulate fills on live prices (NO real orders, NO money at risk)
-# live  = place REAL orders via Angel One. Only flip this once you trust it.
+# paper = simulate fills on live prices (NO real orders). live = REAL orders.
 mode: paper
 
-# angelone = real live market data from Angel One SmartAPI
-# mock     = synthetic feed so you can run the whole pipeline offline / after hours
-feed: mock
+# Default candle timeframe in seconds. Switch it live in the dashboard.
+#   1m=60  5m=300  15m=900  1h=3600
+default_timeframe_seconds: 60
 
-# ---- Instrument to trade -------------------------------------------
-# Find `token` for any symbol with:  python tools/find_token.py "BANKNIFTY"
-# exchange_type (SmartAPI codes): 1=NSE_CM  2=NSE_FO  3=BSE_CM  5=MCX_FO  13=NSE_CD
-# VWAP needs volume, so prefer a FUTURE / OPTION / stock (NFO/NSE), not the spot index.
-instrument:
-  name: "NIFTY FUT"        # display label only
-  tradingsymbol: "NIFTY25JULFUT"   # exact symbol used when placing live orders
-  exchange: "NFO"          # NSE | NFO  (used for order placement)
-  exchange_type: 2         # WebSocket feed exchange code (see above)
-  token: "53001"           # symboltoken from the scrip master — REPLACE for live
-  lot_size: 75
-  tick_size: 0.05
+# Public crypto data source (no account needed for prices).
+crypto:
+  source: coindcx
+  poll_seconds: 3
 
-# Candle size the strategy works on, in seconds (60 = 1-minute candles).
-timeframe_seconds: 60
+# ---- Watchlist -----------------------------------------------------
+# asset_class: index | equity | fno | crypto
+# feed: angelone (equity/index/fno)  |  crypto (BTC/ETH via CoinDCX)
+# enabled: whether this instrument may TAKE trades (toggle live in the UI)
+# ref_price: only used by the offline mock feed as a starting price
+# For live angelone data, set the real `token` (python tools/find_token.py "NAME")
+instruments:
+  - {symbol: NIFTY,     name: "NIFTY 50",    asset_class: index,  feed: angelone,
+     exchange: NSE, exchange_type: 1, token: "99926000", tradingsymbol: "NIFTY",
+     lot_size: 75,  tick_size: 0.05, ref_price: 24500,   enabled: true}
 
-# ---- Strategy: TrendPulse ------------------------------------------
+  - {symbol: BANKNIFTY, name: "BANK NIFTY",  asset_class: index,  feed: angelone,
+     exchange: NSE, exchange_type: 1, token: "99926009", tradingsymbol: "BANKNIFTY",
+     lot_size: 35,  tick_size: 0.05, ref_price: 53000,   enabled: true}
+
+  - {symbol: RELIANCE,  name: "Reliance",    asset_class: equity, feed: angelone,
+     exchange: NSE, exchange_type: 1, token: "2885",     tradingsymbol: "RELIANCE-EQ",
+     lot_size: 50,  tick_size: 0.05, ref_price: 1420,    enabled: false}
+
+  - {symbol: BTC,       name: "Bitcoin (₹)", asset_class: crypto, feed: crypto,
+     market: BTCINR, lot_size: 0.01, tick_size: 1, ref_price: 5800000, enabled: true}
+
+  - {symbol: ETH,       name: "Ethereum (₹)", asset_class: crypto, feed: crypto,
+     market: ETHINR, lot_size: 0.1,  tick_size: 1, ref_price: 320000,  enabled: true}
+
+# ---- Strategy: TrendPulse (shared by every instrument) -------------
 strategy:
   name: trend_pulse
   ema_fast: 9
   ema_slow: 21
-  use_vwap: true           # require price on the right side of VWAP to confirm
+  use_vwap: true
   atr_period: 14
-  atr_stop_mult: 1.5       # stop-loss distance = 1.5 x ATR
-  reward_risk: 2.0         # target = 2.0 x the risk taken
-  reentry_cooldown_bars: 3 # bars to wait after an exit before re-entering
+  atr_stop_mult: 1.5
+  reward_risk: 2.0
+  reentry_cooldown_bars: 3
 
-# ---- Risk controls (hard limits) -----------------------------------
+# ---- Risk controls (per instrument; daily loss is portfolio-wide) --
 risk:
-  qty_lots: 1              # position size in lots
-  max_daily_loss: 3000     # rupees; engine stops opening new trades past this
-  max_trades: 8            # per day
-  square_off: "15:20"      # IST — force-flat after this, no new entries
-  slippage_bps: 2          # paper fills assume this much slippage against you
+  qty_lots: 1
+  max_daily_loss: 5000     # rupees, across the whole desk
+  max_trades: 8            # per instrument, per day
+  square_off: "15:20"      # IST (applies to equity/index; crypto trades 24x7)
+  slippage_bps: 2
 
 # ---- Local dashboard -----------------------------------------------
 dashboard:
