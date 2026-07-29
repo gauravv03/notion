@@ -1,0 +1,6 @@
+# TEJI Desk — runtime dependencies (Python 3.10+)
+smartapi-python>=1.4.8     # Angel One SmartAPI SDK (SmartConnect + SmartWebSocketV2)
+pyotp>=2.9.0               # TOTP generation for Angel One login
+websocket-client>=1.7.0    # underlying WS transport (also pulled by smartapi-python)
+logzero>=1.7.0             # smartapi-python logging dependency
+PyYAML>=6.0                # config.yaml parsing

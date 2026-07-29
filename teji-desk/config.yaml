@@ -1,0 +1,51 @@
+# =====================================================================
+# TEJI Desk configuration
+# =====================================================================
+
+# paper = simulate fills on live prices (NO real orders, NO money at risk)
+# live  = place REAL orders via Angel One. Only flip this once you trust it.
+mode: paper
+
+# angelone = real live market data from Angel One SmartAPI
+# mock     = synthetic feed so you can run the whole pipeline offline / after hours
+feed: mock
+
+# ---- Instrument to trade -------------------------------------------
+# Find `token` for any symbol with:  python tools/find_token.py "BANKNIFTY"
+# exchange_type (SmartAPI codes): 1=NSE_CM  2=NSE_FO  3=BSE_CM  5=MCX_FO  13=NSE_CD
+# VWAP needs volume, so prefer a FUTURE / OPTION / stock (NFO/NSE), not the spot index.
+instrument:
+  name: "NIFTY FUT"        # display label only
+  tradingsymbol: "NIFTY25JULFUT"   # exact symbol used when placing live orders
+  exchange: "NFO"          # NSE | NFO  (used for order placement)
+  exchange_type: 2         # WebSocket feed exchange code (see above)
+  token: "53001"           # symboltoken from the scrip master — REPLACE for live
+  lot_size: 75
+  tick_size: 0.05
+
+# Candle size the strategy works on, in seconds (60 = 1-minute candles).
+timeframe_seconds: 60
+
+# ---- Strategy: TrendPulse ------------------------------------------
+strategy:
+  name: trend_pulse
+  ema_fast: 9
+  ema_slow: 21
+  use_vwap: true           # require price on the right side of VWAP to confirm
+  atr_period: 14
+  atr_stop_mult: 1.5       # stop-loss distance = 1.5 x ATR
+  reward_risk: 2.0         # target = 2.0 x the risk taken
+  reentry_cooldown_bars: 3 # bars to wait after an exit before re-entering
+
+# ---- Risk controls (hard limits) -----------------------------------
+risk:
+  qty_lots: 1              # position size in lots
+  max_daily_loss: 3000     # rupees; engine stops opening new trades past this
+  max_trades: 8            # per day
+  square_off: "15:20"      # IST — force-flat after this, no new entries
+  slippage_bps: 2          # paper fills assume this much slippage against you
+
+# ---- Local dashboard -----------------------------------------------
+dashboard:
+  host: "127.0.0.1"
+  port: 8899

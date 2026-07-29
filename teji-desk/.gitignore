@@ -1,0 +1,10 @@
+# NEVER commit credentials or runtime artifacts
+.env
+.venv/
+venv/
+logs/
+*.log
+__pycache__/
+*.pyc
+state_dump.json
+KILL
